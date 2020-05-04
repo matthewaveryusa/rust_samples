@@ -7,6 +7,12 @@ type RowID = u64;
 type UserName = String;
 type Score = u64;
 
+#[derive(Debug, Clone)]
+struct DataRow {
+    username: UserName,
+    score: Score
+}
+
 #[derive(Eq, PartialOrd, PartialEq)]
 struct ScoreIdxRow {
     score: Score,
@@ -24,9 +30,10 @@ impl Ord for ScoreIdxRow {
   }
 }
 
+
 struct ScoreBoard {
     //owner of data
-    rows: HashMap<RowID, (UserName, Score)>,
+    rows: HashMap<RowID, DataRow>,
     
     //doesn't own
     user_idx: HashMap<UserName, RowID>,
@@ -46,66 +53,46 @@ impl ScoreBoard {
     }
 
     fn insert_user(& mut self, user: &str, score: Score) -> RowID {
-        match self.user_idx.get(user) {
-            Some(row_id) => {
-                match self.rows.get(row_id) {
-                    Some((_, old_score)) => { 
-                        // so many questions here -- both old_score and row_id are references
-                        //and remove takes a tuple by reference. Does this mean a new tuple is allocated
-                        //for me to just take the reference of it and toss it away?
-                        //this remends me of c++ when you try to find a k-v you needed to create a tuple
-                        //with the key and a dummy val.
-                        self.score_idx.remove( &ScoreIdxRow {
-                            score: *old_score,
-                            row_id: *row_id
-                        });
-                    },
-                    None => (),
-                }
-                
-                self.rows.remove(row_id);
-            },
-            None => ()
+        if let Some(row_id) = self.user_idx.get(user) {
+          if let Some(data_row) = self.rows.get(row_id) {
+            self.score_idx.remove( &ScoreIdxRow {
+                score: data_row.score,
+                row_id: *row_id
+              });  
+          }
+          self.rows.remove(row_id);
         }
         self.next_row_id += 1;
-        self.rows.insert(self.next_row_id, (String::from(user), score)); //copy user string makes sense
+        self.rows.insert(self.next_row_id, DataRow { username: String::from(user), score}); //copy user string makes sense
         self.user_idx.insert(String::from(user), self.next_row_id); // another user copy
         self.score_idx.insert(ScoreIdxRow {score, row_id: self.next_row_id});
         return self.next_row_id;
     }
 
-    fn delete_user(& mut self, user: &str) -> RowID{
-        let mut ret = 0;
-        match self.user_idx.get(user) {
-            Some(row_id) => {
-                ret = *row_id;
-                match self.rows.get(row_id) {
-                    Some(row) => {
-                        self.score_idx.remove(&ScoreIdxRow { score: row.1, row_id: *row_id});
-                    },
-                    None => ()
-                }
-                self.rows.remove(&row_id);
-                self.user_idx.remove(user);
-            },
-            None => (),
+    fn delete_user(& mut self, user: &str) -> Option<RowID>{
+        let mut ret = None;
+        if let Some(row_id) =  self.user_idx.get(user) {
+            ret = Some(*row_id);
+            if let Some(row) =  self.rows.get(row_id) {
+              self.score_idx.remove(&ScoreIdxRow { score: row.score, row_id: *row_id});
+            }
+            self.rows.remove(&row_id);
+            self.user_idx.remove(user);
         }
         ret
     }
 
-    fn top_n(&self, n: usize) -> Vec<(UserName, Score)> {
+    fn top_n(&self, n: usize) -> Vec<DataRow> {
         let n = cmp::min(n, self.rows.len());
         let mut vec = Vec::new();
         let mut iter = self.score_idx.iter();
         for _ in 0..n {
             let score_idx_row = iter.next().unwrap();
-            match self.rows.get(&score_idx_row.row_id) {
-                Some(row) => vec.push(row.clone()),
-                None => ()
+            if let Some(row) = self.rows.get(&score_idx_row.row_id) {
+                vec.push(row.clone())
             }
         }
         vec
-
     }
 }
 
