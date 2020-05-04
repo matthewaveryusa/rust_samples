@@ -70,16 +70,15 @@ impl ScoreBoard {
     }
 
     fn delete_user(& mut self, user: &str) -> Option<RowID>{
-        let mut ret = None;
-        if let Some(row_id) =  self.user_idx.get(user) {
-            ret = Some(*row_id);
-            if let Some(row) =  self.rows.get(row_id) {
-              self.score_idx.remove(&ScoreIdxRow { score: row.score, row_id: *row_id});
+        if let Some(row_id) =  self.user_idx.remove(user) {
+            if let Some(row) =  self.rows.get(&row_id) {
+              self.score_idx.remove(&ScoreIdxRow { score: row.score, row_id});
             }
             self.rows.remove(&row_id);
             self.user_idx.remove(user);
+            return Some(row_id);
         }
-        ret
+        None
     }
 
     fn top_n(&self, n: usize) -> Vec<DataRow> {
